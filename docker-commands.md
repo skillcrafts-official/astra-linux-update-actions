@@ -9,7 +9,7 @@ ssh username@server-ip
 ## 2. Найти контейнер с базой данных
 ```
 #bash
-
+sudo find / -type f -name ".env" 2>/dev/null
 docker ps | grep -E 'postgres|mysql|mariadb|mongo'
 ```
 Или посмотреть все запущенные контейнеры:
