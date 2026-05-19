@@ -23,7 +23,7 @@ docker ps
 ```
 #Для PostgreSQL
 #bash
-
+docker exec -it <container_name_or_id> /bin/bash
 docker exec -it <container_id> psql -U <username> -d <database_name>
 
 #Пример:
