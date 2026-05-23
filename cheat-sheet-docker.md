@@ -217,3 +217,81 @@ volumes:
   pgdata:
 ```
 > Примечание по версиям команд: В современных версиях Docker используется плагин Compose v2, команды выполняются как docker compose (без дефиса). Если у вас установлен старый docker-compose (v1), заменяйте docker compose на docker-compose.
+## Создание и использование непривилегированных пользователей в Dockerfile
+По умолчанию Docker выполняет все инструкции (`RUN`, `CMD`, `ENTRYPOINT`) от имени `root`.  
+Это несёт риски для безопасности и вызывает предупреждения (например, pip).  
+Создание пользователя без прав root — **обязательная практика** для production-образов.
+### 1. Шаблон для Debian/Ubuntu (образы на основе `debian`, `ubuntu`, `python:slim`)
+
+```dockerfile
+# Создаём группу и пользователя
+RUN groupadd --system --gid 1000 appgroup && \
+    useradd --system --uid 1000 --gid appgroup --create-home appuser
+
+# Опционально: создаём рабочую директорию и меняем владельца
+WORKDIR /app
+RUN chown -R appuser:appgroup /app
+
+# Переключаемся на непривилегированного пользователя
+USER appuser
+```
+Все последующие команды (RUN, CMD) выполняются от appuser
+### 2. Шаблон для Alpine (образы на основе alpine, python:alpine)
+```dockerfile
+# В Alpine утилита adduser/addgroup (без useradd/groupadd)
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+RUN chown -R appuser:appgroup /app
+
+USER appuser
+```
+### 3. Создание пользователя с конкретным UID/GID
+Полезно, когда нужно совпадение с UID/GID хоста для проброшенных томов (volume mounts).
+```dockerfile
+# Debian/Ubuntu
+RUN groupadd --gid 1001 mygroup && \
+    useradd --uid 1001 --gid mygroup --create-home myuser
+
+# Alpine
+RUN addgroup -g 1001 mygroup && adduser -u 1001 -G mygroup -D myuser
+```
+### 4. Копирование файлов с правильными правами
+При копировании файлов до смены пользователя — владельцем будет root.
+Лучше копировать файлы, затем менять владельца.
+```dockerfile
+COPY --chown=appuser:appgroup . /app
+# или
+COPY . /app
+RUN chown -R appuser:appgroup /app
+```
+### 5. Использование пользователя в multi-stage сборках
+В финальном образе обычно нет компиляторов, поэтому пользователя создаём именно там.
+```dockerfile
+# Стадия сборки (builder) — работает от root, это нормально
+FROM golang:1.21-alpine AS builder
+WORKDIR /build
+COPY . .
+RUN go build -o myapp .
+
+# Финальный образ
+FROM alpine:3.19
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+COPY --from=builder --chown=appuser:appgroup /build/myapp /usr/local/bin/myapp
+USER appuser
+CMD ["myapp"]
+```
+### 6. Как проверить, под каким пользователем работает контейнер
+```bash
+docker exec myapp_container whoami
+# или
+docker exec myapp_container id
+```
+### 7. Смена пользователя на root внутри работающего контейнера (только для отладки)
+```bash
+docker exec -u root -it myapp_container /bin/sh
+```
+> ### Важные замечания
+> - Инструкция USER влияет только на команды, идущие после неё.
+> - Если вашему приложению нужны привилегированные порты (например, 80), не запускайте его под root. Используйте `EXPOSE 8080` и проброс портов на хосте: `docker run -p 80:8080` ....
+> - Для временного повышения прав (установка пакетов) в одном `RUN` слое используйте `sudo` или временный `USER root`, но лучше выполнять установку ДО переключения пользователя.
