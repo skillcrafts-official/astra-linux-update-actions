@@ -18,10 +18,10 @@ docker run -d --name myapp_container myapp
 ```
 Пересобрать образы (принудительно, без кэша) и пересоздать контейнеры
 ```bash
-docker compose build --no-cache
-docker compose up -d --force-recreate
+docker compose -f путь/к/файлу.yml build --no-cache
+docker compose -f путь/к/файлу.yml up -d --force-recreate
 # Или одной командой:
-docker compose up -d --build --force-recreate
+docker compose -f путь/к/файлу.yml up -d --build --force-recreate
 ```
 ### 3. Удаление контейнеров
 Удаление конкретного контейнера
@@ -37,11 +37,11 @@ docker container prune -f
 ```
 Остановить и удалить контейнеры, сети, созданные командой up
 ```bash
-docker compose down
+docker compose -f путь/к/файлу.yml down
 ```
 Удалить также именованные volumes (данные), прикреплённые к сервисам
 ```bash
-docker compose down -v
+docker compose -f путь/к/файлу.yml down -v
 ```
 ### 4. Очистка памяти от временных файлов и артефактов
 Общая очистка системы (неиспользуемые контейнеры, сети, образы, кэш сборки)
