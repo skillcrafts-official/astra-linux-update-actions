@@ -337,3 +337,138 @@ docker compose port app 8080
 docker compose rm app
 docker compose rm -v app
 ```
+## Популярные сценарии запуска контейнеров
+### 1. Интерактивная разработка (shell внутри контейнера)
+
+**Сценарий:** отладка, ручная работа с файлами, проверка окружения. Контейнер запускается с терминалом, часто с монтированием текущей папки.
+
+```bash
+# Docker
+docker run -it --rm -v $(pwd):/app -w /app python:3.12-alpine /bin/sh
+
+# Docker Compose (сервис command: /bin/sh, запуск без -d)
+docker compose run --rm app /bin/sh
+```
+`-it` — интерактивный режим + TTY
+`--rm` — удалить контейнер после выхода
+`-v $(pwd):/app` — смонтировать текущую папку хоста в /app контейнера
+`-w /app` — рабочая директория внутри контейнера
+
+### 2. Долгоживущий сервис (веб-приложение)
+**Сценарий**: запуск API, веб-сервера, базы данных. Контейнер работает в фоне и перезапускается при падениях.
+```bash
+# Docker
+docker run -d --name my_app --restart unless-stopped -p 8080:8080 myapp:latest
+
+# Docker Compose
+docker compose up -d app
+```
+`-d` — детач-режим (фон)
+`--restart unless-stopped` — автоматический перезапуск (кроме случаев ручной остановки)
+`-p хост:контейнер` — проброс порта
+
+### 3. Одноразовая задача (скрипт, миграция, cron)
+**Сценарий**: выполнение команды и завершение контейнера. Часто используется с --rm, чтобы не оставлять мусора.
+```bash
+# Docker
+docker run --rm -v $(pwd)/data:/data alpine:latest sh -c "cat /data/file.txt"
+
+# Docker Compose (сервис должен быть настроен с командой по умолчанию)
+docker compose run --rm app python manage.py migrate
+```
+
+### 4. Запуск с пробросом портов
+**Сценарий**: сделать внутренний порт приложения доступным на хосте.
+```bash
+# Docker
+docker run -d -p 80:8080 -p 443:8443 myapp
+
+# Проброс на конкретный IP хоста
+docker run -d -p 127.0.0.1:3306:3306 mysql:8
+```
+
+### 5. Передача переменных окружения
+**Сценарий**: конфигурирование приложения без правки образа.
+```bash
+# Одна переменная
+docker run -d -e DATABASE_URL=postgres://... myapp
+
+# Из файла .env
+docker run -d --env-file ./.env myapp
+```
+```yml
+# Docker Compose (в файле compose.yml)
+environment:
+  - NODE_ENV=production
+# или файл
+env_file:
+  - .env
+```
+
+### 6. Переопределение команды или точки входа
+**Сценарий**: временно запустить другой процесс, не меняя Dockerfile.
+```bash
+# Переопределить команду (CMD)
+docker run -it --rm alpine echo "Hello"
+
+# Переопределить точку входа (ENTRYPOINT) и команду
+docker run -it --rm --entrypoint /bin/sh myapp -c "ls /app"
+```
+
+### 7. Запуск с ограничением ресурсов (CPU, память)
+**Сценарий**: предотвратить захват всех ресурсов хоста одним контейнером.
+```bash
+docker run -d --memory="256m" --cpus="1.5" myapp
+```
+`--memory` — максимальный объём ОЗУ
+`--cpus` — доля ядер процессора (1.5 = полтора ядра)
+
+### 8. Запуск с использованием GPU (nvidia)
+**Сценарий**: машинное обучение, обработка видео.
+```bash
+docker run -d --gpus all nvidia/cuda:12.0-runtime-ubuntu22.04 nvidia-smi
+```
+
+### 9. Запуск стека сервисов (Docker Compose)
+**Сценарий**: микросервисы, приложение с базой данных и кэшем.
+```bash
+docker compose up -d              # весь стек
+docker compose up -d app db       # только выбранные
+docker compose up -d --scale worker=3   # масштабирование (если нет привязки к портам)
+```
+
+### 10. Запуск контейнера в той же сети, что и другой (связь между контейнерами)
+**Сценарий**: временно присоединить контейнер к существующей сети для отладки.
+```bash
+# Создать сеть
+docker network create mynet
+# Запустить первый контейнер в этой сети
+docker run -d --net mynet --name db postgres
+# Запустить временный контейнер в той же сети
+docker run -it --rm --net mynet alpine ping db
+```
+
+### 11. Запуск контейнера с инициализацией базы (seed)
+**Сценарий**: контейнер выполняет подготовительные операции и завершается.
+```yml
+# В compose.yml
+services:
+  init:
+    image: alpine
+    volumes:
+      - ./init.sh:/init.sh
+    command: /init.sh
+    depends_on:
+      - db
+```
+Запуск
+```bash
+docker compose up init
+```
+
+### 12. Запуск с монтированием Docker-сокета (Docker-in-Docker)
+**Сценарий**: управлять хост-демоном Docker из контейнера (CI/CD, администрирование).
+```bash
+docker run -it --rm -v /var/run/docker.sock:/var/run/docker.sock docker:latest sh
+```
+Внутри можно выполнять команды `docker` от имени хоста.
