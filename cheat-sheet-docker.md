@@ -168,6 +168,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Тег для контейнера (чтобы не генерировалось автоматически)
+    image: mayapp
     # Имя контейнера (чтобы не генерировалось автоматически)
     container_name: myapp_container
     # Проброс портов: "хост:контейнер"
