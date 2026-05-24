@@ -217,6 +217,54 @@ volumes:
   pgdata:
 ```
 > Примечание по версиям команд: В современных версиях Docker используется плагин Compose v2, команды выполняются как docker compose (без дефиса). Если у вас установлен старый docker-compose (v1), заменяйте docker compose на docker-compose.
+### Эквивалент, через команды sh
+1. Собрать образ для приложения (аналог build: .)
+```bash
+docker build -t myapp .
+```
+2. Создать том для данных БД (аналог volumes: pgdata)
+```bash
+docker volume create pgdata
+```
+3. Создать пользовательскую сеть (аналог networks: app-network)
+```bash
+docker network create app-network
+```
+4. Запустить базу данных (аналог сервиса db)
+```bash
+docker run -d \
+  --name myapp_db \
+  --network app-network \
+  --restart unless-stopped \
+  -e POSTGRES_USER=user \
+  -e POSTGRES_PASSWORD=pass \
+  -e POSTGRES_DB=mydb \
+  -v pgdata:/var/lib/postgresql/data \
+  --health-cmd "pg_isready -U user -d mydb" \
+  --health-interval 5s \
+  --health-timeout 5s \
+  --health-retries 5 \
+  postgres:16-alpine
+```
+5. Дождаться, пока БД станет healthy (замена depends_on с condition: service_healthy)
+```bash
+echo "Ожидание готовности PostgreSQL..."
+until [ "$(docker inspect -f '{{.State.Health.Status}}' myapp_db)" = "healthy" ]; do
+  sleep 1
+done
+echo "PostgreSQL готов"
+```
+6. Запустить приложение (аналог сервиса app)
+```bash
+docker run -d \
+  --name myapp_container \
+  --network app-network \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -e DATABASE_URL=postgres://user:pass@myapp_db:5432/mydb?sslmode=disable \
+  -v "$(pwd)":/app \
+  myapp
+```
 ## Создание и использование непривилегированных пользователей в Dockerfile
 По умолчанию Docker выполняет все инструкции (`RUN`, `CMD`, `ENTRYPOINT`) от имени `root`.  
 Это несёт риски для безопасности и вызывает предупреждения (например, pip).  
