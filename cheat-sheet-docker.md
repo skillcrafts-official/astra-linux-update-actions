@@ -173,9 +173,12 @@ services:
     # Проброс портов: "хост:контейнер"
     ports:
       - "8080:8080"
+    env_file:
+      - .env
     # Переменные окружения
     environment:
-      - DATABASE_URL=postgres://user:pass@db:5432/mydb?sslmode=disable
+      environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
     # Тома: монтируем локальную папку для разработки (hot-reload)
     volumes:
       - .:/app
@@ -191,10 +194,12 @@ services:
   db:
     image: postgres:16-alpine  # Готовый образ из Docker Hub
     container_name: myapp_db
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: pass
-      POSTGRES_DB: mydb
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     # Постоянное хранилище данных
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -215,6 +220,14 @@ networks:
 # Именованный том для данных БД (чтобы данные сохранялись между перезапусками)
 volumes:
   pgdata:
+```
+Пример файла .env
+```env
+POSTGRES_USER=user
+POSTGRES_PASSWORD=pass
+POSTGRES_DB=mydb
+DJANGO_SECRET_KEY=supersecret
+DEBUG=False
 ```
 > Примечание по версиям команд: В современных версиях Docker используется плагин Compose v2, команды выполняются как docker compose (без дефиса). Если у вас установлен старый docker-compose (v1), заменяйте docker compose на docker-compose.
 ### Эквивалент, через команды sh
@@ -240,7 +253,7 @@ docker run -d \
   -e POSTGRES_PASSWORD=pass \
   -e POSTGRES_DB=mydb \
   -v pgdata:/var/lib/postgresql/data \
-  --health-cmd "pg_isready -U user -d mydb" \
+  --health-cmd "pg_isready -U \$(printenv POSTGRES_USER) -d \$(printenv POSTGRES_DB)" \
   --health-interval 5s \
   --health-timeout 5s \
   --health-retries 5 \
@@ -261,7 +274,8 @@ docker run -d \
   --network app-network \
   --restart unless-stopped \
   -p 8080:8080 \
-  -e DATABASE_URL=postgres://user:pass@myapp_db:5432/mydb?sslmode=disable \
+  # -e DATABASE_URL=postgres://user:pass@myapp_db:5432/mydb?sslmode=disable \
+  --env-file .env \
   -v "$(pwd)":/app \
   myapp
 ```
