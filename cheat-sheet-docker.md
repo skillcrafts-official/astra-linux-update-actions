@@ -167,6 +167,8 @@ services:
     # Сборка из Dockerfile в текущей директории (.)
     build:
       context: .
+      args:
+        - MY_VAR=${MY_VAR}   # значение из .env или shell
       dockerfile: Dockerfile
     # Тег для контейнера (чтобы не генерировалось автоматически)
     image: mayapp
