@@ -249,9 +249,10 @@ docker run -d \
   --name myapp_db \
   --network app-network \
   --restart unless-stopped \
-  -e POSTGRES_USER=user \
-  -e POSTGRES_PASSWORD=pass \
-  -e POSTGRES_DB=mydb \
+  # -e POSTGRES_USER=user \
+  # -e POSTGRES_PASSWORD=pass \
+  # -e POSTGRES_DB=mydb \
+  --env-file .env \
   -v pgdata:/var/lib/postgresql/data \
   --health-cmd "pg_isready -U \$(printenv POSTGRES_USER) -d \$(printenv POSTGRES_DB)" \
   --health-interval 5s \
