@@ -134,3 +134,100 @@ def reset_to_default(key):
 - Безопасность: Не коммитьте `.env` с секретами. Для работы с секретами лучше использовать системные переменные в продакшене.
 - Порядок загрузки: `load_dotenv(find_dotenv())` должен быть вызван до первого чтения конфигов, иначе значения из `.env` не попадут в `os.environ`.
 - Функции `set_key` / `unset_key` модифицируют именно файл `.env`. Убедитесь, что файл не заблокирован и доступен для записи.
+
+### Работа с конфигами (не .env)
+#### 1. `.ini` (configparser, стандартная библиотека)
+Конфигурация
+```ini
+; settings.ini
+[database]
+host = localhost
+port = 5432
+```
+Работа с конфигурацией
+```python
+import configparser
+import os
+
+config = configparser.ConfigParser()
+config.read("settings.ini")
+
+# Приоритет: env → ini → default
+db_host = os.environ.get("DB_HOST") or config.get("database", "host", fallback="127.0.0.1")
+db_port = int(os.environ.get("DB_PORT") or config.get("database", "port", fallback="5432"))
+```
+Запись/обновление в `.ini`:
+```python
+config.set("database", "host", "10.0.0.1")
+with open("settings.ini", "w") as f:
+    config.write(f)
+```
+#### 2. `.json`
+Конфигурация
+```json
+// config.json
+{
+  "database": {
+    "host": "localhost",
+    "port": 5432
+  }
+}
+```
+Работа с конфигурацией
+```python
+import json
+import os
+
+with open("config.json") as f:
+    cfg = json.load(f)
+
+# Приоритет: env → json → default
+db_host = os.environ.get("DB_HOST") or cfg.get("database", {}).get("host", "127.0.0.1")
+db_port = int(os.environ.get("DB_PORT") or cfg.get("database", {}).get("port", 5432))
+```
+Запись/обновление в `.json`:
+```python
+cfg.setdefault("database", {})["host"] = "10.0.0.1"
+with open("config.json", "w") as f:
+    json.dump(cfg, f, indent=2)
+```
+#### 3. `.yaml` (требуется `pip install pyyaml`)
+Конфигурация
+```yaml
+# config.yaml
+database:
+  host: localhost
+  port: 5432
+```
+Работа с конфигурацией
+```python
+import yaml
+import os
+
+with open("config.yaml") as f:
+    cfg = yaml.safe_load(f)
+
+# Приоритет: env → yaml → default
+db_host = os.environ.get("DB_HOST") or cfg.get("database", {}).get("host", "127.0.0.1")
+db_port = int(os.environ.get("DB_PORT") or cfg.get("database", {}).get("port", 5432))
+```
+Запись/обновление в `.yaml`:
+```python
+cfg.setdefault("database", {})["host"] = "10.0.0.1"
+with open("config.yaml", "w") as f:
+    yaml.safe_dump(cfg, f, default_flow_style=False)
+```
+### Сводка: универсальный паттерн чтения с приоритетами
+```python
+import os
+
+# Функция-помощник
+def get_config(env_key, file_value, default):
+    return os.environ.get(env_key) or file_value or default
+```
+Использование для любого типа файла:
+```python
+db_host = get_config("DB_HOST", file_cfg["database"]["host"], "127.0.0.1")
+```
+
+### 
